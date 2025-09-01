@@ -4,7 +4,11 @@ import pandas as pd
 import json
 from pathlib import Path
 import re
+import os
+from pathlib import Path
 
+CSV_FILE_NOTES = Path(os.getenv("CSV_FILE_NOTES", "Asthma_Symp.csv"))
+CSV_FILE_LABS  = Path(os.getenv("CSV_FILE_LABS",  "symptom_patient_merged.csv"))
 # -----------------------------
 # Helpers (backend)
 # -----------------------------
@@ -1199,4 +1203,5 @@ def main():
     app.run(debug=True)
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
