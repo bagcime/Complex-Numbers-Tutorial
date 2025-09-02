@@ -4,7 +4,12 @@ import pandas as pd
 import json
 from pathlib import Path
 import re
+import os
+from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
+NOTES_CSV = Path(os.getenv("NOTES_CSV", BASE_DIR /  "Asthma_Symp.csv"))
+LABS_CSV  = Path(os.getenv("LABS_CSV",  BASE_DIR /  "symptom_patient_merged.csv"))
 # -----------------------------
 # Helpers (backend)
 # -----------------------------
@@ -1200,3 +1205,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
