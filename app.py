@@ -7,9 +7,7 @@ import re
 import os
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent
-NOTES_CSV = Path(os.getenv("NOTES_CSV", BASE_DIR /  "Asthma_Symp.csv"))
-LABS_CSV  = Path(os.getenv("LABS_CSV",  BASE_DIR /  "symptom_patient_merged.csv"))
+
 # -----------------------------
 # Helpers (backend)
 # -----------------------------
@@ -297,9 +295,14 @@ Patient_bio_used_with_data = [  # PATIENTHASHMRN, DATE_DIF pairs
 "938a7ecbd42589dfebaa2ad28a810758eae509acb6092e6f891a9f40457260e4",28224,
 ]
 
-CSV_FILE_NOTES = Path(r"C:/Users/mbagci/Documents/GitHub/AsthmaEHR/ScrippsData/SYMP_ext_plot/webpage_bioloical_annotate/Asthma_Symp.csv")
-CSV_FILE_LABS  = Path(r"C:/Users/mbagci/Documents/GitHub/AsthmaEHR/ScrippsData/SYMP_ext_plot/webpage_bioloical_annotate/symptom_patient_merged.csv")
+BASE_DIR = Path(__file__).resolve().parent
+NOTES_CSV = Path(os.getenv("NOTES_CSV", BASE_DIR /  "Asthma_Symp.csv"))
+LABS_CSV  = Path(os.getenv("LABS_CSV",  BASE_DIR /  "symptom_patient_merged.csv"))
 
+# CSV_FILE_NOTES = Path(r"C:/Users/mbagci/Documents/GitHub/AsthmaEHR/ScrippsData/SYMP_ext_plot/webpage_bioloical_annotate/Asthma_Symp.csv")
+# CSV_FILE_LABS  = Path(r"C:/Users/mbagci/Documents/GitHub/AsthmaEHR/ScrippsData/SYMP_ext_plot/webpage_bioloical_annotate/symptom_patient_merged.csv")
+CSV_FILE_NOTES = NOTES_CSV
+CSV_FILE_LABS  = LABS_CSV
 LAB_COLUMNS_SHOW = [
     "Absolute Basophils", "Absolute Eosinophils", "Absolute Lymphocytes",
     "Absolute Neutrophils", "FEV1 PRE", "FEV1/FVC PRE",
@@ -1205,4 +1208,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
