@@ -85,8 +85,7 @@ def make_friendly_text(text: str) -> str:
     return t.strip()
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
-# -----------------------------
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")# -----------------------------
 # Data (paths + columns)
 # -----------------------------
 Candidate_patients = [
@@ -1225,7 +1224,7 @@ LOGIN_TEMPLATE = """
   <title>Sign in</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    :root{ --border:#cfe0f5; --muted:#eef4ff; --bg:#f1f7ff; --text:#0b1220; --primary:#2563eb; }
+    :root{ --border:#cfe0f5; --bg:#f1f7ff; --text:#0b1220; --primary:#2563eb; }
     body{ font-family: Arial, sans-serif; background:var(--bg); margin:0; padding:32px; }
     .card{ max-width:380px; margin:60px auto; background:#fff; border:1px solid var(--border); border-radius:14px; padding:22px; box-shadow:0 2px 6px rgba(15,23,42,.06); }
     h2{ margin:0 0 12px 0; }
@@ -1233,7 +1232,6 @@ LOGIN_TEMPLATE = """
     input{ width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; }
     button{ margin-top:16px; width:100%; padding:10px 14px; background:var(--primary); color:#fff; border:none; border-radius:10px; cursor:pointer; }
     .err{ color:#b91c1c; margin-top:10px; }
-    .hint{ color:#475569; font-size:12px; margin-top:8px; }
   </style>
 </head>
 <body>
@@ -1246,7 +1244,6 @@ LOGIN_TEMPLATE = """
       <input id="password" name="password" type="password" autocomplete="current-password" required />
       <button type="submit">Enter</button>
       {% if error %}<div class="err">{{ error }}</div>{% endif %}
-      <div class="hint">Try ID: <code>1</code> &nbsp; Password: <code>1</code></div>
     </form>
   </div>
 </body>
@@ -1258,21 +1255,28 @@ def login():
     if request.method == "POST":
         uid = (request.form.get("userid") or "").strip()
         pw  = (request.form.get("password") or "").strip()
+        # hard-coded: ID=1, PASSWORD=1
         if uid == "1" and pw == "1":
             session["authed"] = True
             return redirect(url_for("ui"))
         return render_template_string(LOGIN_TEMPLATE, error="Invalid credentials.")
-    # GET
     return render_template_string(LOGIN_TEMPLATE, error=None)
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
-
+@app.before_request
+def require_login():
+    if request.endpoint in ("login", "static"):
+        return
+    if not session.get("authed"):
+        return redirect(url_for("login"))
 
 @app.route("/")
 def ui():
+    if not session.get("authed"):
+        return redirect(url_for("login"))
     return render_template_string(
         TEMPLATE,
         patients_json=json.dumps(PATIENTS, ensure_ascii=False),
@@ -1291,6 +1295,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
