@@ -1218,14 +1218,6 @@ TEMPLATE = """
 """
 @app.route("/")
 def ui():
-    if not session.get("authed"):
-        return redirect(url_for("login"))
-
-    ensure_data_loaded()
-    if LOAD_ERR:
-        # a small friendly page instead of crashing
-        return f"<h3>Startup Error</h3><p>{LOAD_ERR}</p>", 500
-
     return render_template_string(
         TEMPLATE,
         patients_json=json.dumps(PATIENTS, ensure_ascii=False),
@@ -1244,6 +1236,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
