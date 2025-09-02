@@ -303,6 +303,34 @@ LABS_CSV  = Path(os.getenv("LABS_CSV",  BASE_DIR /  "symptom_patient_merged.csv"
 # CSV_FILE_LABS  = Path(r"C:/Users/mbagci/Documents/GitHub/AsthmaEHR/ScrippsData/SYMP_ext_plot/webpage_bioloical_annotate/symptom_patient_merged.csv")
 CSV_FILE_NOTES = NOTES_CSV
 CSV_FILE_LABS  = LABS_CSV
+
+DATA_LOADED = False
+LOAD_ERR = None
+
+def ensure_data_loaded():
+    global DATA_LOADED, LOAD_ERR
+    global PATIENTS_NOTES, LABS_BY_PATIENT, DEMO_BY_PATIENT, PATIENTS, BIO_EVENTS
+
+    if DATA_LOADED:
+        return
+
+    try:
+        PATIENTS_NOTES = load_notes(CSV_FILE_NOTES)
+        LABS_BY_PATIENT, DEMO_BY_PATIENT = load_labs(CSV_FILE_LABS)
+
+        allowed = set(LABS_BY_PATIENT.keys())
+        PATIENTS = {pid: val for pid, val in PATIENTS_NOTES.items() if pid in allowed}
+        LABS_BY_PATIENT = {pid: LABS_BY_PATIENT[pid] for pid in PATIENTS if pid in LABS_BY_PATIENT}
+        DEMO_BY_PATIENT = {pid: DEMO_BY_PATIENT.get(pid, {"AGE": None, "SEX": "", "BMI": None}) for pid in PATIENTS}
+
+        # rebuild BIO_EVENTS now that PATIENTS exists
+        BIO_EVENTS = build_bio_events(Patient_bio_used_with_data, set(PATIENTS.keys()))
+
+        DATA_LOADED = True
+    except FileNotFoundError as e:
+        LOAD_ERR = f"Data files not found. NOTES_CSV='{CSV_FILE_NOTES}', LABS_CSV='{CSV_FILE_LABS}'. Error: {e}"
+    except Exception as e:
+        LOAD_ERR = f"Failed to load data: {e}"
 LAB_COLUMNS_SHOW = [
     "Absolute Basophils", "Absolute Eosinophils", "Absolute Lymphocytes",
     "Absolute Neutrophils", "FEV1 PRE", "FEV1/FVC PRE",
@@ -1188,9 +1216,16 @@ TEMPLATE = """
 </body>
 </html>
 """
-
 @app.route("/")
 def ui():
+    if not session.get("authed"):
+        return redirect(url_for("login"))
+
+    ensure_data_loaded()
+    if LOAD_ERR:
+        # a small friendly page instead of crashing
+        return f"<h3>Startup Error</h3><p>{LOAD_ERR}</p>", 500
+
     return render_template_string(
         TEMPLATE,
         patients_json=json.dumps(PATIENTS, ensure_ascii=False),
@@ -1203,10 +1238,12 @@ def ui():
         bio_json=json.dumps(BIO_EVENTS),
     )
 
+
 def main():
     app.run(debug=True)
 
 if __name__ == "__main__":
     main()
+
 
 
