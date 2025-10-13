@@ -7,7 +7,6 @@ import re
 import os
 from pathlib import Path
 
-
 # -----------------------------
 # Helpers (backend)
 # -----------------------------
@@ -85,7 +84,9 @@ def make_friendly_text(text: str) -> str:
     return t.strip()
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")# -----------------------------
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
+
+# -----------------------------
 # Data (paths + columns)
 # -----------------------------
 Candidate_patients = [
@@ -171,9 +172,7 @@ Candidate_patients = [
  'a381c561203b597054864705380e601d6408046b37677e0fb54b85f3d587e7a5',
  'a92341f83303e7feaea89fc7ece6063bf5e4245e31f827f21fc40f4d582f85b2',
  'ac85341c1f71b1bc32d4ebc977dbae55d017166553a219a0a85dae1b8fe08808',
- 
- 
- 
+
  '1ef9ebd014b9951a0458cb14e450f803bbb88becb188c78e55b94580685386bd',
  '226e9dc8e979fbe7791a69e7b08b616d8aee4177c5a8a61af42fe45f9c9e6141',
  '34a432e4b994c6e23eb9884e02faeeec1ffaaccd205f90f232789e0a074f778a',
@@ -196,7 +195,6 @@ patient_bio_used=['1ef9ebd014b9951a0458cb14e450f803bbb88becb188c78e55b9458068538
  'cd64c7d700e5715bec6565496b6bffe761a6bcc3b353bdd94d75bf94ed79122b',
  'ce1027b31d7ce9cabaebcd920a669e0b0fbbc0dadaef36112ec399e182124f92',
  'da079d5c3eccdefce202d126a9ef5d8dac7f32a64c24c531782021e5ba8a1f9f']
-
 
 Patient_bio_used_with_data = [  # PATIENTHASHMRN, DATE_DIF pairs
 "1ef9ebd014b9951a0458cb14e450f803bbb88becb188c78e55b94580685386bd",27318,
@@ -298,8 +296,6 @@ BASE_DIR = Path(__file__).resolve().parent
 NOTES_CSV = Path(os.getenv("NOTES_CSV", BASE_DIR /  "Asthma_Symp.csv"))
 LABS_CSV  = Path(os.getenv("LABS_CSV",  BASE_DIR /  "symptom_patient_merged.csv"))
 
-# CSV_FILE_NOTES = Path(r"C:/Users/mbagci/Documents/GitHub/AsthmaEHR/ScrippsData/SYMP_ext_plot/webpage_bioloical_annotate/Asthma_Symp.csv")
-# CSV_FILE_LABS  = Path(r"C:/Users/mbagci/Documents/GitHub/AsthmaEHR/ScrippsData/SYMP_ext_plot/webpage_bioloical_annotate/symptom_patient_merged.csv")
 CSV_FILE_NOTES = NOTES_CSV
 CSV_FILE_LABS  = LABS_CSV
 
@@ -322,7 +318,6 @@ def ensure_data_loaded():
         LABS_BY_PATIENT = {pid: LABS_BY_PATIENT[pid] for pid in PATIENTS if pid in LABS_BY_PATIENT}
         DEMO_BY_PATIENT = {pid: DEMO_BY_PATIENT.get(pid, {"AGE": None, "SEX": "", "BMI": None}) for pid in PATIENTS}
 
-        # rebuild BIO_EVENTS now that PATIENTS exists
         BIO_EVENTS = build_bio_events(Patient_bio_used_with_data, set(PATIENTS.keys()))
 
         DATA_LOADED = True
@@ -330,6 +325,7 @@ def ensure_data_loaded():
         LOAD_ERR = f"Data files not found. NOTES_CSV='{CSV_FILE_NOTES}', LABS_CSV='{CSV_FILE_LABS}'. Error: {e}"
     except Exception as e:
         LOAD_ERR = f"Failed to load data: {e}"
+
 LAB_COLUMNS_SHOW = [
     "Absolute Basophils", "Absolute Eosinophils", "Absolute Lymphocytes",
     "Absolute Neutrophils", "FEV1 PRE", "FEV1/FVC PRE",
@@ -461,7 +457,6 @@ def build_symptom_groups():
 
 SYM_GROUPS, SYM_ORDER = build_symptom_groups()
 
-# ---- Build biologic-use events map (only for patients present in PATIENTS) ----
 def build_bio_events(flat_list, valid_patients):
     bio = {}
     n = len(flat_list)
@@ -473,7 +468,6 @@ def build_bio_events(flat_list, valid_patients):
             continue
         if pid in valid_patients:
             bio.setdefault(pid, []).append(d)
-    # sort & unique
     for pid in list(bio.keys()):
         uniq = sorted(set(bio[pid]))
         bio[pid] = uniq
@@ -482,7 +476,7 @@ def build_bio_events(flat_list, valid_patients):
 BIO_EVENTS = build_bio_events(Patient_bio_used_with_data, set(PATIENTS.keys()))
 
 # -----------------------------
-# Template (Ocean palette + larger padding/background)
+# Template (UI)
 # -----------------------------
 TEMPLATE = """
 <!doctype html>
@@ -493,7 +487,6 @@ TEMPLATE = """
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root{
-      /* Fixed Ocean palette */
       --border:#cfe0f5; --muted:#eef4ff; --bg:#f1f7ff; --pagebg:#f7fbff; --text:#0b1220;
       --accent:#0ea5e9; --primary:#2563eb; --red:#f43f5e;
       --good:#10b981; --bad:#ef4444; --unk:#64748b;
@@ -512,7 +505,7 @@ TEMPLATE = """
 
     .card{ border:1px solid var(--border); border-radius:14px; background:#fff; padding:16px; box-shadow:0 2px 6px rgba(15,23,42,.06); }
     .card.resizable{ resize:both; overflow:auto; min-width:280px; min-height:180px; }
-    .panel-head{ display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; margin-bottom:12px; border-bottom:1px solid var(--border); }
+    .panel-head{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding-bottom:10px; margin-bottom:12px; border-bottom:1px solid var(--border); }
     .panel-title{ font-size:20px; font-weight:700; letter-spacing:.2px; }
 
     .box{ height:440px; overflow-y:auto; padding:14px; background:var(--bg); border:1px solid var(--border); border-radius:10px; white-space:pre-wrap; line-height:1.45; font-family:'Times New Roman', serif; font-size:16px; }
@@ -527,7 +520,6 @@ TEMPLATE = """
     .btn-purple{ background:var(--purple); color:#fff; border:1px solid var(--purple); }
     .btn-purple:hover{ background:var(--purpleD); border-color:var(--purpleD); }
 
-    /* Annotator badge/input */
     .annotator { display:flex; align-items:center; gap:10px; }
     .badge { background:var(--muted); border:1px solid var(--border); color:#0b1220; padding:6px 10px; border-radius:999px; font-weight:700; }
     .annotator input { padding:8px 10px; border-radius:10px; border:1px solid #cbd5e1; }
@@ -547,6 +539,7 @@ TEMPLATE = """
     .dot.blue{ background:#175b82; border:2px solid #0b2f41; }
     .dot.red{ background:var(--red); border:2px solid #9a1212; }
     .dot.bio{ width:12px; height:12px; background:var(--good); border:2px solid #065f46; border-radius:2px; transform:translateX(-50%) rotate(45deg); }
+    .dot.gray{ background:#94a3b8; border:2px solid #64748b; }
     .date-label{ position:absolute; top:28px; transform:translateX(-50%); font-size:12px; color:#111; white-space:nowrap; background:#fff; padding:1px 3px; border-radius:3px; border:1px solid #eee; }
 
     /* Demographics */
@@ -588,15 +581,11 @@ TEMPLATE = """
         <select id="patient-select"></select>
         <button id="next-patient-btn">Next Patient ➡️</button>
       </div>
-      <div class="controls">
-        <button class="ghost" id="prev-btn">⬅️ Previous Text</button>
-        <button class="ghost" id="next-btn">Next Text ➡️</button>
-      </div>
     </div>
   </div>
 
   <div id="timeline-section">
-    <div class="small"><strong>Time Line</strong>: blue = notes; red = selected; <span style="color:#065f46;">green diamonds</span> = biologic use (added)</div>
+    <div class="small"><strong>Time Line</strong>: blue = notes; red = selected; <span style="color:#065f46;">green diamonds</span> = biologic use</div>
     <div id="timeline" class="timeline"></div>
   </div>
 
@@ -605,7 +594,11 @@ TEMPLATE = """
       <div class="card resizable">
         <div class="panel-head">
           <div class="panel-title">Note Text</div>
-          <button id="friendly-btn" class="btn-purple">👁 Friendly View</button>
+          <div class="controls">
+            <button class="ghost" id="prev-btn">⬅️ Previous Text</button>
+            <button id="friendly-btn" class="btn-purple">👁 Friendly View</button>
+            <button class="ghost" id="next-btn">Next Text ➡️</button>
+          </div>
         </div>
         <div id="text-box" class="box resizable"></div>
       </div>
@@ -647,7 +640,7 @@ TEMPLATE = """
 
       <div class="card resizable">
         <div class="panel-head">
-          <div class="panel-title">Annotations </div>
+          <div class="panel-title">Annotations</div>
         </div>
         <div id="no-anns" class="small">No annotations yet.</div>
         <div style="overflow-x:auto; display:none;" id="ann-table-wrap">
@@ -680,19 +673,18 @@ TEMPLATE = """
 
       <div class="card resizable">
         <div class="panel-head">
-          <div class="panel-title">Spirometry & Labs (closest to selected note)</div>
+          <div class="panel-title">Spirometry & Labs – closest to selected note</div>
         </div>
         <div id="lab-content"></div>
       </div>
 
       <div class="card resizable">
         <div class="panel-head">
-          <div class="panel-title">Symptoms (from symptom_patient_merged.csv)</div>
+          <div class="panel-title">Symptoms – symptom_patient_merged.csv</div>
         </div>
         <div class="small" style="margin-bottom:8px;">
           <span class="icon good">✓</span> present (1) &nbsp;&nbsp;
-          <span class="icon bad">✕</span> absent (0) &nbsp;&nbsp;
-          <span class="icon unk">?</span> unknown
+          <span class="icon bad">✕</span> absent (0)
         </div>
         <div id="sym-content"></div>
       </div>
@@ -714,30 +706,26 @@ TEMPLATE = """
   let currentPatient = PATIENT_IDS[0] || "";
   let pos = 0;
   let friendlyMode = false;
+
   function lockBioRadioForPatient(){
     const yes = document.getElementById("bioUseYes");
     const no  = document.getElementById("bioUseNo");
     const hasBio = Array.isArray(BIO[currentPatient]) && BIO[currentPatient].length > 0;
 
     if (hasBio){
-      // Lock to YES
       yes.checked = true;  no.checked = false;
       yes.disabled = true; no.disabled = true;
-
-      // Show date range inputs, hide candidate UI
       document.getElementById("bio-yes-extra").style.display = "flex";
       document.getElementById("bio-no-extra").style.display  = "none";
     } else {
-      // Lock to NO
       yes.checked = false; no.checked = true;
-      yes.disabled = true; no.disabled = true;   // <— lock to false, per your request
-
-      // Hide date range inputs, show candidate UI
+      yes.disabled = true; no.disabled = true;
       document.getElementById("bio-yes-extra").style.display = "none";
       document.getElementById("bio-no-extra").style.display  = "flex";
     }
   }
-  /* ---------- Annotator name (with Change button) ---------- */
+
+  /* ---------- Annotator UI ---------- */
   function getAnnotator(){ return localStorage.getItem("annotator_name") || ""; }
   function setAnnotator(name){ localStorage.setItem("annotator_name", name); }
   function renderAnnotatorUI(){
@@ -753,7 +741,7 @@ TEMPLATE = """
       changeBtn.textContent = "Change";
       changeBtn.onclick = () => {
         const v = prompt("Set annotator name:", name);
-        if (v === null) return; // cancel
+        if (v === null) return;
         const trimmed = (v || "").trim();
         if (!trimmed){ alert("Annotator cannot be empty."); return; }
         setAnnotator(trimmed);
@@ -780,7 +768,12 @@ TEMPLATE = """
   }
 
   /* ---------- Helpers ---------- */
-  function el(tag, attrs={}, text=null){ const e=document.createElement(tag); Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v)); if(text!==null) e.textContent=text; return e; }
+  function el(tag, attrs={}, text=null){
+    const e=document.createElement(tag);
+    Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));
+    if(text!==null) e.textContent=text;
+    return e;
+  }
   const titleCase = s => s.replace(/\\b\\w/g, c => c.toUpperCase());
 
   /* ---------- Patient nav ---------- */
@@ -807,30 +800,44 @@ TEMPLATE = """
     box.scrollTop = 0;
     btn.textContent = friendlyMode ? "🔤 Raw View" : "👁 Friendly View";
   }
+
   function renderTimeline(){
     const section = document.getElementById("timeline-section");
     const tl = document.getElementById("timeline");
     tl.innerHTML="";
-    const P = PATIENTS[currentPatient];
-    const count = (P.notes || []).length;
+    const P = PATIENTS[currentPatient] || {notes:[], min_date:0, max_date:0};
+    const notes = P.notes || [];
     const B = BIO[currentPatient] || [];
 
-    if (count <= 1 && B.length === 0){ section.style.display="none"; return; }
+    // Always show the timeline rectangle
     section.style.display="block";
 
+    if ((notes.length === 0) && B.length === 0){
+      // Single centered neutral dot
+      const d=el("div",{class:"dot gray"});
+      d.style.left = "50%";
+      d.style.top  = "-6px";
+      d.title = "No timeline data";
+      tl.appendChild(d);
+      return;
+    }
+
     // Extend min/max to include biologic-use dates
-    let minD = P.min_date, maxD = P.max_date;
+    let minD = P.min_date ?? 0, maxD = P.max_date ?? 1;
     if (B.length){
       const bmin = Math.min.apply(null, B);
       const bmax = Math.max.apply(null, B);
+      if (minD===undefined || minD===null) minD=bmin;
+      if (maxD===undefined || maxD===null) maxD=bmax;
       if (bmin < minD) minD = bmin;
       if (bmax > maxD) maxD = bmax;
     }
+    if (minD===maxD){ maxD = minD + 1; }
     const span = (maxD - minD) || 1;
 
     const slots = {};
     // notes
-    (P.notes||[]).forEach((n,i)=>{
+    notes.forEach((n,i)=>{
       const pct = ((n.date - minD) / span) * 100;
       const key = Math.round(pct*10)/10;
       const stack = (slots[key]||0); slots[key] = stack + 1;
@@ -859,7 +866,6 @@ TEMPLATE = """
       m.style.top  = (-6 - stack*16) + "px";
       m.title = "Biologic use date: " + bd;
 
-      // Optional: jump to the closest note when clicking the bio marker
       m.onclick = ()=>{
         let bestI = 0, bestDist = Infinity;
         (P.notes||[]).forEach((n,i)=>{
@@ -917,14 +923,21 @@ TEMPLATE = """
     const host=document.getElementById("lab-content");
     if(!best){ host.innerHTML='<div class="small muted">No lab/spirometry record for this patient.</div>'; return; }
 
-    let html=`
-      <table class="labs-table">
-        <thead>
-          <tr><th>Lab Result</th><th>Your Value</th><th>Typical Reference Range (Adults)</th></tr>
-        </thead>
-        <tbody>
-          <tr><th>Closest DATE_DIF</th><td>${valText(best.date)}</td><td>—</td></tr>
-    `;
+    const demo = DEMO[pid] || {};
+    const age = typeof demo.AGE === "number" ? demo.AGE : (parseFloat(demo.AGE) || null);
+    const isChild = (age != null) && (age < 18);
+
+    // Build table header depending on child/adult
+    let html = '<table class="labs-table"><thead><tr>';
+    html += '<th>Lab Result</th><th>Your Value</th>';
+    if (!isChild){
+      html += '<th>Typical Reference Range (Adults)</th>';
+    }
+    html += '</tr></thead><tbody>';
+
+    // Always include closest DATE_DIF
+    html += '<tr><th>Closest DATE_DIF</th><td>' + valText(best.date) + '</td>' + (isChild ? '' : '<td>—</td>') + '</tr>';
+
     LAB_FIELDS.forEach(f=>{
       const v = best.hasOwnProperty(f)? best[f] : null;
       const rawRef = (REF_RANGES && REF_RANGES[f]) ? REF_RANGES[f] : "—";
@@ -936,16 +949,19 @@ TEMPLATE = """
         if (tokens.length === 1) return tokens[0];
         return tokens.slice(0,2).join(" - ");
       })();
-      html += `<tr><th>${f}</th><td>${valText(v)}</td><td>${ref}</td></tr>`;
+      html += '<tr><th>' + f + '</th><td>' + valText(v) + '</td>' + (isChild ? '' : '<td>' + ref + '</td>') + '</tr>';
     });
     html += "</tbody></table>";
     host.innerHTML = html;
   }
+
+  // Unknown -> blank
   function iconHTML(v){
     if (v===1 || v==="1") return '<span class="icon good">✓</span>';
     if (v===0 || v==="0") return '<span class="icon bad">✕</span>';
-    return '<span class="icon unk">?</span>';
+    return '<span class="icon unk" style="visibility:hidden">·</span>';
   }
+
   function renderSymptoms(){
     const pid=currentPatient;
     const targetDate=PATIENTS[pid].notes[pos].date;
@@ -987,17 +1003,13 @@ TEMPLATE = """
     try { localStorage.setItem("ann_"+pid, JSON.stringify(arr)); } catch(e){}
   }
 
-  // Robust delete: by ts if present, else fingerprint
   function deleteAnnotation(pid, ts, fp){
     const arr = loadPatientAnnotations(pid);
-
-    // If timestamp present, use it
     if (ts) {
       const newArr = arr.filter(r => String(r.ts || "") !== String(ts || ""));
       savePatientAnnotations(pid, newArr);
       return;
     }
-    // Fallback: fingerprint (works for legacy rows)
     let removed = false;
     const newArr = arr.filter(r => {
       if (removed) return true;
@@ -1108,7 +1120,6 @@ TEMPLATE = """
   function switchPatient(pid){
     currentPatient=pid; pos=0;
     document.getElementById("free-note").value="";
-    // reset biologic UI to defaults
     document.getElementById("bioUseNo").checked = true;
     document.getElementById("bioUseYes").checked = false;
     document.getElementById("bio-yes-extra").style.display = "none";
@@ -1124,8 +1135,8 @@ TEMPLATE = """
   /* ---------- Render orchestration ---------- */
   function renderAll(){
     renderAnnotatorUI();
-    renderPatientSelect(); renderHeader(); 
-    lockBioRadioForPatient(); // <— add this
+    renderPatientSelect(); renderHeader();
+    lockBioRadioForPatient();
     renderText(); renderTimeline();
     renderAnnTable(); renderDemographics(); renderLabsForCurrentNote(); renderSymptoms();
   }
@@ -1145,13 +1156,11 @@ TEMPLATE = """
     document.getElementById("prev-patient-btn").onclick=(e)=>{ e.preventDefault(); prevPatient(); };
     document.getElementById("friendly-btn").onclick=()=>{ friendlyMode=!friendlyMode; renderText(); };
 
-    // Biologic UI toggles
     const useNo = document.getElementById("bioUseNo");
     const useYes = document.getElementById("bioUseYes");
     useNo.onchange = () => { if (useNo.checked){ document.getElementById("bio-yes-extra").style.display="none"; document.getElementById("bio-no-extra").style.display="flex"; } };
     useYes.onchange = () => { if (useYes.checked){ document.getElementById("bio-yes-extra").style.display="flex"; document.getElementById("bio-no-extra").style.display="none"; } };
 
-    // Save annotation
     document.getElementById("save-annotation").onclick=(e)=>{
       e.preventDefault();
       const annotator = getAnnotator();
@@ -1183,10 +1192,8 @@ TEMPLATE = """
       alert("Annotation saved.");
     };
 
-    // Export txt
     document.getElementById("export-txt").onclick=(e)=>{ e.preventDefault(); exportAnnotations(); };
 
-    // Delete buttons (event delegation)
     document.getElementById("ann-body").addEventListener("click", (e)=>{
       const btn = e.target.closest(".ann-del");
       if (!btn) return;
@@ -1226,12 +1233,22 @@ LOGIN_TEMPLATE = """
   <style>
     :root{ --border:#cfe0f5; --bg:#f1f7ff; --text:#0b1220; --primary:#2563eb; }
     body{ font-family: Arial, sans-serif; background:var(--bg); margin:0; padding:32px; }
-    .card{ max-width:380px; margin:60px auto; background:#fff; border:1px solid var(--border); border-radius:14px; padding:22px; box-shadow:0 2px 6px rgba(15,23,42,.06); }
-    h2{ margin:0 0 12px 0; }
-    label{ display:block; margin:10px 0 6px; font-weight:700; }
-    input{ width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; }
-    button{ margin-top:16px; width:100%; padding:10px 14px; background:var(--primary); color:#fff; border:none; border-radius:10px; cursor:pointer; }
-    .err{ color:#b91c1c; margin-top:10px; }
+    .card{
+      max-width: 460px;
+      min-height: 340px;           /* taller to avoid mismatch */
+      margin: 64px auto;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:28px;
+      box-shadow:0 2px 6px rgba(15,23,42,.06);
+      box-sizing: border-box;
+    }
+    h2{ margin:0 0 16px 0; }
+    label{ display:block; margin:12px 0 8px; font-weight:700; }
+    input{ width:100%; padding:12px 14px; border:1px solid #cbd5e1; border-radius:10px; font-size:16px; }
+    button{ margin-top:20px; width:100%; padding:12px 16px; background:var(--primary); color:#fff; border:none; border-radius:10px; cursor:pointer; font-size:16px; }
+    .err{ color:#b91c1c; margin-top:12px; }
   </style>
 </head>
 <body>
@@ -1266,6 +1283,7 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
 @app.before_request
 def require_login():
     if request.endpoint in ("login", "static"):
@@ -1289,15 +1307,8 @@ def ui():
         bio_json=json.dumps(BIO_EVENTS),
     )
 
-
 def main():
     app.run(debug=True)
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
