@@ -166,7 +166,7 @@ Candidate_patients = [
  '9695268a8446f8b11580a1c1f3e4b554b8cc35d29dac467c3295b525501acadc',
  '96e415026efe7b4d54e862ec4bad95090c2d8ad0f081a933b4e5852e0ead9788',
  '98666a27b70d12cafee5f7d9ec30b9161c7e9bdde11cc1b79644add65add4819',
- '9bb507542c08b39e2faa7eb05ff241b972e2594e06806d4789bdfd7ed655ffe8',
+ '9bb507542c08b39e2faa2ad28a810758eae509acb6092e6f891a9f40457260e4',
  '9de226d33f9cf1c3f56d0cc7dbb94ff4e0aab16e8264775fffdf5b03f91c8117',
  'a114d4daed6dec83009fded3930f1006ce051b2b21077351b7586286fbffe83c',
  'a381c561203b597054864705380e601d6408046b37677e0fb54b85f3d587e7a5',
@@ -295,6 +295,8 @@ Patient_bio_used_with_data = [  # PATIENTHASHMRN, DATE_DIF pairs
 BASE_DIR = Path(__file__).resolve().parent
 NOTES_CSV = Path(os.getenv("NOTES_CSV", BASE_DIR /  "Asthma_Symp.csv"))
 LABS_CSV  = Path(os.getenv("LABS_CSV",  BASE_DIR /  "symptom_patient_merged.csv"))
+# NEW: optional medications CSV path (defaults to local file)
+MEDS_CSV  = Path(os.getenv("MEDS_CSV",  BASE_DIR /  "Medication_1600_ATS_severe.csv"))
 
 CSV_FILE_NOTES = NOTES_CSV
 CSV_FILE_LABS  = LABS_CSV
@@ -426,6 +428,114 @@ def load_labs(csv_path: Path):
             demo_by_patient[pid] = {"AGE": None, "SEX": "", "BMI": None}
     return labs_by_patient, demo_by_patient
 
+# ---------- NEW: medications loader (patient + date aware) ----------
+def load_medications(csv_path: Path):
+    """
+    Returns:
+      meds_by_patient: { pid: [ {date: float|None, meds: [str,...]} , ...] }
+      err: str|None
+    Supports either:
+      - one or more text columns with med lists (column name contains med/drug/rx/name)
+      - many 0/1 flag columns (header is medication name)
+    """
+    if not csv_path.exists():
+        return {}, f"Medications file not found at: {csv_path}"
+    try:
+        df = pd.read_csv(csv_path, dtype={"PATIENTHASHMRN": str})
+    except Exception as e:
+        return {}, f"Failed to read medications CSV: {e}"
+
+    if "PATIENTHASHMRN" not in df.columns:
+        return {}, "Medications CSV must include PATIENTHASHMRN."
+
+    # date column best-effort
+    date_col = None
+    for cand in ["DATE_DIF", "ENCDATEDIFFNO", "DATE_DIFFNO", "DATE_DIFF"]:
+        if cand in df.columns:
+            date_col = cand
+            break
+    if date_col is None:
+        df["DATE_DIF"] = pd.NA
+        date_col = "DATE_DIF"
+    df[date_col] = pd.to_numeric(df[date_col], errors="coerce")
+
+    # identify med text columns
+    def is_med_text_col(col):
+        c = col.lower()
+        return any(k in c for k in ["med", "drug", "rx", "name"]) and df[col].dtype == object
+    text_med_cols = [c for c in df.columns if is_med_text_col(c)]
+
+    # identify binary med columns (0/1)
+    NON_MED_LIKE = {
+        "patienthashmrn", "date_dif", "encdatediffno", "date_diffno", "date_diff",
+        "age", "sex", "bmi", "ats_severe", "atssevere",
+        "note", "notes", "provider", "encounter", "visit", "mrn", "id"
+    }
+    bin_med_cols = []
+    for c in df.columns:
+        lc = _norm(c)
+        if lc in NON_MED_LIKE: 
+            continue
+        # boolean dtypes
+        if df[c].dtype == bool:
+            bin_med_cols.append(c)
+            continue
+        # numeric {0,1}
+        try:
+            vals = pd.unique(df[c].dropna().astype(float))
+            if len(vals) and set(vals).issubset({0.0, 1.0}):
+                if not any(tok in c.lower() for tok in ["date","age","sex","bmi","count","score","risk","flag"]):
+                    bin_med_cols.append(c)
+        except Exception:
+            pass
+
+    split_re = re.compile(r'[;,\|/]+|\s{2,}')
+    def row_meds(row):
+        meds = []
+        for c in text_med_cols:
+            val = row.get(c)
+            if pd.isna(val): 
+                continue
+            s = str(val).strip()
+            if not s: 
+                continue
+            parts = [p.strip() for p in split_re.split(s) if p.strip()]
+            meds.extend(parts)
+        for c in bin_med_cols:
+            v = row.get(c)
+            if pd.isna(v): 
+                continue
+            try:
+                if float(v) == 1.0:
+                    meds.append(str(c).strip())
+            except Exception:
+                if str(v).strip().lower() in {"true","t","yes","y"}:
+                    meds.append(str(c).strip())
+        # normalize + dedupe case-insensitively
+        out, seen = [], set()
+        for m in meds:
+            mm = re.sub(r'\s+', ' ', m).strip()
+            if not mm: 
+                continue
+            key = mm.lower()
+            if key not in seen:
+                seen.add(key)
+                out.append(mm)
+        return out
+
+    meds_by_patient = {}
+    work = df.dropna(subset=["PATIENTHASHMRN"])
+    # prefer rows with valid date if present
+    if work[date_col].notna().any():
+        work = work.dropna(subset=[date_col])
+
+    for pid, g in work.groupby("PATIENTHASHMRN"):
+        series = []
+        for _, row in g.sort_values(date_col, na_position="last").iterrows():
+            series.append({"date": try_float(row.get(date_col)), "meds": row_meds(row)})
+        meds_by_patient[pid] = series
+    return meds_by_patient, None
+
 PATIENTS_NOTES = load_notes(CSV_FILE_NOTES)
 LABS_BY_PATIENT, DEMO_BY_PATIENT = load_labs(CSV_FILE_LABS)
 
@@ -433,6 +543,10 @@ allowed = set(LABS_BY_PATIENT.keys())
 PATIENTS = {pid: val for pid, val in PATIENTS_NOTES.items() if pid in allowed}
 LABS_BY_PATIENT = {pid: LABS_BY_PATIENT[pid] for pid in PATIENTS.keys() if pid in LABS_BY_PATIENT}
 DEMO_BY_PATIENT = {pid: DEMO_BY_PATIENT.get(pid, {"AGE": None, "SEX": "", "BMI": None}) for pid in PATIENTS.keys()}
+
+# ---------- NEW: load meds & restrict to current PATIENTS ----------
+MEDS_BY_PATIENT_ALL, MEDS_ERR = load_medications(MEDS_CSV)
+MEDS_BY_PATIENT = {pid: MEDS_BY_PATIENT_ALL.get(pid, []) for pid in PATIENTS.keys()}
 
 def build_symptom_groups():
     groups = {}
@@ -564,6 +678,12 @@ TEMPLATE = """
     .patient-id{ font-weight:700; font-size:16px; }
     .muted{ color:#666; }
     textarea.notes{ width:100%; min-height:120px; resize:vertical; padding:12px; border:1px solid var(--border); border-radius:10px; font-size:14px; line-height:1.45; }
+
+    /* NEW: Medications */
+    .med-filter { width: 100%; margin: 8px 0 10px 0; padding: 8px 10px; border:1px solid #cbd5e1; border-radius:10px; }
+    .med-box { height: 240px; overflow-y: auto; border: 1px solid var(--border); background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 15px; line-height: 1.45; white-space: normal; }
+    .med-item { padding: 6px 4px; border-bottom: 1px dashed #e5e7eb; }
+    .med-item:last-child { border-bottom: none; }
   </style>
 </head>
 <body>
@@ -688,6 +808,17 @@ TEMPLATE = """
         </div>
         <div id="sym-content"></div>
       </div>
+
+      <!-- NEW: Medications panel AT THE BOTTOM -->
+      <div class="card resizable">
+        <div class="panel-head">
+          <div class="panel-title">Medications — closest to selected note</div>
+        </div>
+        <div class="small muted" id="med-date"></div>
+        <div class="small muted" id="med-err" style="display:none;"></div>
+        <input id="med-filter" class="med-filter" placeholder="Filter these medications..." />
+        <div id="med-box" class="med-box"></div>
+      </div>
     </div>
   </div>
 
@@ -701,6 +832,9 @@ TEMPLATE = """
   const SYM_ORDER = {{ sym_order_json|safe }};
   const REF_RANGES = {{ ref_ranges_json|safe }};
   const BIO = {{ bio_json|safe }};  // { pid: [dates...] }
+  // NEW:
+  const MEDS = {{ meds_json|safe }};
+  const MEDS_ERR = {{ meds_err|safe }};
 
   const PATIENT_IDS = Object.keys(PATIENTS);
   let currentPatient = PATIENT_IDS[0] || "";
@@ -809,11 +943,9 @@ TEMPLATE = """
     const notes = P.notes || [];
     const B = BIO[currentPatient] || [];
 
-    // Always show the timeline rectangle
     section.style.display="block";
 
     if ((notes.length === 0) && B.length === 0){
-      // Single centered neutral dot
       const d=el("div",{class:"dot gray"});
       d.style.left = "50%";
       d.style.top  = "-6px";
@@ -822,7 +954,6 @@ TEMPLATE = """
       return;
     }
 
-    // Extend min/max to include biologic-use dates
     let minD = P.min_date ?? 0, maxD = P.max_date ?? 1;
     if (B.length){
       const bmin = Math.min.apply(null, B);
@@ -836,7 +967,6 @@ TEMPLATE = """
     const span = (maxD - minD) || 1;
 
     const slots = {};
-    // notes
     notes.forEach((n,i)=>{
       const pct = ((n.date - minD) / span) * 100;
       const key = Math.round(pct*10)/10;
@@ -855,7 +985,6 @@ TEMPLATE = """
       tl.appendChild(lab);
     });
 
-    // biologic-use markers (green diamonds)
     B.forEach((bd)=>{
       const pct = ((bd - minD) / span) * 100;
       const key = Math.round(pct*10)/10;
@@ -927,7 +1056,6 @@ TEMPLATE = """
     const age = typeof demo.AGE === "number" ? demo.AGE : (parseFloat(demo.AGE) || null);
     const isChild = (age != null) && (age < 18);
 
-    // Build table header depending on child/adult
     let html = '<table class="labs-table"><thead><tr>';
     html += '<th>Lab Result</th><th>Your Value</th>';
     if (!isChild){
@@ -935,7 +1063,6 @@ TEMPLATE = """
     }
     html += '</tr></thead><tbody>';
 
-    // Always include closest DATE_DIF
     html += '<tr><th>Closest DATE_DIF</th><td>' + valText(best.date) + '</td>' + (isChild ? '' : '<td>—</td>') + '</tr>';
 
     LAB_FIELDS.forEach(f=>{
@@ -955,7 +1082,6 @@ TEMPLATE = """
     host.innerHTML = html;
   }
 
-  // Unknown -> blank
   function iconHTML(v){
     if (v===1 || v==="1") return '<span class="icon good">✓</span>';
     if (v===0 || v==="0") return '<span class="icon bad">✕</span>';
@@ -993,6 +1119,61 @@ TEMPLATE = """
       wrap.appendChild(el("div",{},label));
     });
     host.appendChild(wrap);
+  }
+
+  // ---------- NEW: Medications ----------
+  function closestMedRec(pid, targetDate){
+    const arr = MEDS[pid] || [];
+    let best=null, bestDist=Infinity;
+    for(const r of arr){
+      const d = (r.date==null || Number.isNaN(r.date)) ? targetDate : r.date;
+      const dist = Math.abs((d ?? targetDate) - targetDate);
+      if (dist < bestDist){ best=r; bestDist=dist; }
+    }
+    return best;
+  }
+
+  function renderMedications(){
+    const errEl = document.getElementById("med-err");
+    const dateEl = document.getElementById("med-date");
+    const box = document.getElementById("med-box");
+    const filterEl = document.getElementById("med-filter");
+
+    if (MEDS_ERR && MEDS_ERR !== "null"){ errEl.style.display="block"; errEl.textContent = MEDS_ERR; }
+    else { errEl.style.display="none"; }
+
+    const pid = currentPatient;
+    const P = PATIENTS[pid];
+    if (!P || (P.notes||[]).length===0){ box.innerHTML = '<div class="small muted">No notes for this patient.</div>'; dateEl.textContent = ""; return; }
+
+    const targetDate = P.notes[pos].date;
+    const best = closestMedRec(pid, targetDate);
+
+    if (!best || !Array.isArray(best.meds) || best.meds.length===0){
+      dateEl.textContent = `Closest medication row to note DATE_DIF ${targetDate}: none`;
+      box.innerHTML = '<div class="small muted">No medications on/near this date.</div>';
+      return;
+    }
+
+    dateEl.textContent = `Closest medication DATE_DIF: ${best.date==null?'—':best.date} (note selected: ${targetDate})`;
+
+    const f = (filterEl.value||"").trim().toLowerCase();
+    const list = f ? best.meds.filter(m => String(m).toLowerCase().includes(f)) : best.meds;
+
+    if (list.length === 0){
+      box.innerHTML = '<div class="small muted">No medications match your filter.</div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    list.forEach(m=>{
+      const div = document.createElement("div");
+      div.className = "med-item";
+      div.textContent = m;
+      frag.appendChild(div);
+    });
+    box.innerHTML = "";
+    box.appendChild(frag);
   }
 
   /* ---------- Annotation storage ---------- */
@@ -1139,10 +1320,13 @@ TEMPLATE = """
     lockBioRadioForPatient();
     renderText(); renderTimeline();
     renderAnnTable(); renderDemographics(); renderLabsForCurrentNote(); renderSymptoms();
+    renderMedications(); // NEW
+    document.getElementById("med-filter").oninput = renderMedications; // NEW
   }
   function renderAllForNote(){
     renderHeader(); renderText(); renderTimeline();
     renderLabsForCurrentNote(); renderSymptoms();
+    renderMedications(); // NEW
   }
 
   /* ---------- Boot ---------- */
@@ -1305,6 +1489,9 @@ def ui():
         sym_order_json=json.dumps(SYM_ORDER),
         ref_ranges_json=json.dumps(REF_RANGES),
         bio_json=json.dumps(BIO_EVENTS),
+        # NEW:
+        meds_json=json.dumps(MEDS_BY_PATIENT, ensure_ascii=False),
+        meds_err=json.dumps(MEDS_ERR, ensure_ascii=False),
     )
 
 def main():
